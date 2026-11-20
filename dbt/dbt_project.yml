@@ -1,5 +1,5 @@
 name: statcast
-version: "0.1.0"
+version: "0.2.0"
 config-version: 2
 profile: statcast
 
@@ -9,8 +9,28 @@ macro-paths: ["macros"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
+vars:
+  # Strike zone geometry. The rulebook zone is 17 inches wide; a pitch is a
+  # strike if ANY part of the ball touches the zone, so we pad by the ball's radius.
+  plate_half_width_in: 8.5
+  ball_radius_in: 1.45
+  # Pitches within this many inches of the zone edge count as "edge" pitches.
+  edge_band_in: 2.0
+  # Incremental fact model re-processes this many recent days on every run,
+  # to pick up late corrections from Savant.
+  incremental_lookback_days: 3
+
 models:
   statcast:
     staging:
       +materialized: view
       +schema: staging
+    intermediate:
+      +materialized: table
+      +schema: intermediate
+    marts:
+      +materialized: table
+      core:
+        +schema: core
+      analytics:
+        +schema: analytics

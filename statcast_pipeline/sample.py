@@ -105,3 +105,64 @@ def fake_fetch(day: date) -> pd.DataFrame:
     if day.weekday() == 0:
         return pd.DataFrame()
     return make_fake_day(day)
+
+
+# --- Games, umpires and players (Week 2) -------------------------------------
+
+UMPIRES = [(427000 + i, name) for i, name in enumerate(
+    ["Ump Alvarez", "Ump Baker", "Ump Chen", "Ump Diaz", "Ump Evans",
+     "Ump Foster", "Ump Garcia", "Ump Hughes", "Ump Ito", "Ump Jones"])]
+_BOXSCORE_ONLY: dict[int, list[dict]] = {}
+
+
+def fake_fetch_schedule(day: date) -> dict:
+    """A schedule payload in the MLB Stats API shape, matching make_fake_day's
+    games. The last game of each day omits umpires, which forces the boxscore
+    fallback path."""
+    if day.weekday() == 0:
+        return {"dates": []}
+    pitches = make_fake_day(day)
+    games = pitches.drop_duplicates("game_pk")[["game_pk", "home_team", "away_team"]]
+    out = []
+    for i, row in enumerate(games.itertuples(index=False)):
+        ump_id, ump_name = UMPIRES[row.game_pk % len(UMPIRES)]
+        officials = [
+            {"official": {"id": ump_id, "fullName": ump_name}, "officialType": "Home Plate"},
+            {"official": {"id": ump_id + 100, "fullName": f"{ump_name} Jr."}, "officialType": "First Base"},
+        ]
+        game = {
+            "gamePk": int(row.game_pk), "gameType": "R", "officialDate": day.isoformat(),
+            "gameDate": f"{day.isoformat()}T23:05:00Z", "status": {"detailedState": "Final"},
+            "teams": {"home": {"team": {"id": 100 + TEAMS.index(row.home_team), "name": row.home_team}},
+                      "away": {"team": {"id": 100 + TEAMS.index(row.away_team), "name": row.away_team}}},
+            "venue": {"name": f"{row.home_team} Park"}, "doubleHeader": "N", "gameNumber": 1,
+        }
+        if i == len(games) - 1:
+            _BOXSCORE_ONLY[int(row.game_pk)] = officials
+        else:
+            game["officials"] = officials
+        out.append(game)
+    return {"dates": [{"date": day.isoformat(), "games": out}]}
+
+
+def fake_fetch_boxscore_officials(game_pk: int) -> list[dict]:
+    return _BOXSCORE_ONLY.get(int(game_pk), [])
+
+
+def fake_players_from_lake(statcast_dir) -> pd.DataFrame:
+    """A Chadwick-register-shaped table for every pitcher and batter in the
+    sample partitions (a few left out on purpose, to exercise the name fallback)."""
+    files = list(statcast_dir.glob("dt=*/*.parquet"))
+    ids: set[int] = set()
+    for f in files:
+        df = pd.read_parquet(f, columns=["pitcher", "batter"])
+        ids |= set(df["pitcher"].astype(int)) | set(df["batter"].astype(int))
+    ids_sorted = sorted(ids)[: int(len(ids) * 0.95)]
+    return pd.DataFrame({
+        "name_last": [f"Last{i}" for i in ids_sorted],
+        "name_first": [f"First{i}" for i in ids_sorted],
+        "key_mlbam": ids_sorted,
+        "key_retro": None, "key_bbref": None,
+        "key_fangraphs": [-1] * len(ids_sorted),
+        "mlb_played_first": 2015.0, "mlb_played_last": 2024.0,
+    })

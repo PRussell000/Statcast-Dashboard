@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: raw
-    description: Raw Statcast data loaded by statcast_pipeline/load.py from the Parquet lake.
+    description: Raw tables loaded by statcast_pipeline/load.py from the Parquet lake.
     schema: raw
     tables:
       - name: pitches
@@ -15,3 +15,12 @@ sources:
           - name: game_pk
             data_tests:
               - not_null
+
+      - name: games
+        description: One row per scheduled game from the MLB Stats API schedule endpoint.
+
+      - name: game_officials
+        description: Umpire assignments per game (hydrate=officials, with a boxscore fallback).
+
+      - name: players
+        description: Chadwick Bureau player register (names and cross-site IDs), via pybaseball.

@@ -4,6 +4,7 @@ pyarrow>=15
 duckdb>=1.1
 dbt-duckdb>=1.10      # brings dbt-core
 tenacity>=8.2
+requests>=2.31
 numpy>=1.26
 
 # dev

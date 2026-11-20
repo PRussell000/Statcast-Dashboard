@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: mart_pitcher_arsenal
+    description: "Pitch-type usage, velocity, movement and results. Grain: pitcher x season x pitch type."
+    columns:
+      - name: arsenal_key
+        data_tests: [unique, not_null]
+      - name: usage_rate
+        description: Share of the pitcher's pitches that season thrown as this type (0-1).
+
+  - name: mart_umpire_accuracy
+    description: "Home-plate umpire accuracy vs. the rulebook zone. Grain: umpire x season."
+    columns:
+      - name: umpire_season_key
+        data_tests: [unique, not_null]
+
+  - name: mart_called_accuracy_by_count
+    description: "League-wide call accuracy by ball-strike count. Grain: season x count."
+    columns:
+      - name: season_count_key
+        data_tests: [unique, not_null]
+
+  - name: mart_pitch_movement_consistency
+    description: "Average within-pitcher movement variability by pitch type. Grain: season x pitch type."
+    columns:
+      - name: season_pitch_key
+        data_tests: [unique, not_null]

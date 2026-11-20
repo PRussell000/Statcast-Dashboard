@@ -51,3 +51,23 @@ models:
                 severity: warn
       - name: release_speed_mph
         description: Pitch speed at release. Singular test assert_plausible_release_speed checks the range.
+
+  - name: stg_games
+    description: "One row per scheduled game from the MLB Stats API. Grain: game."
+    columns:
+      - name: game_pk
+        data_tests: [unique, not_null]
+
+  - name: stg_game_officials
+    description: "One row per umpire assignment. Grain: game x umpire position."
+    columns:
+      - name: game_pk
+        data_tests: [not_null]
+      - name: umpire_id
+        data_tests: [not_null]
+
+  - name: stg_players
+    description: "Player names and IDs from the Chadwick register. Grain: player."
+    columns:
+      - name: player_id
+        data_tests: [unique, not_null]

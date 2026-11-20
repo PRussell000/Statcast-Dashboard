@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
+import time
 from collections.abc import Callable, Iterator
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -39,6 +39,7 @@ from tenacity import (
 )
 
 from statcast_pipeline import config
+from statcast_pipeline.storage import write_parquet_atomic
 
 log = logging.getLogger(__name__)
 
@@ -58,8 +59,8 @@ def partition_dir(day: date, base: Path | None = None) -> Path:
     return base / f"dt={day.isoformat()}"
 
 
-def partition_path(day: date, base: Path | None = None) -> Path:
-    return partition_dir(day, base) / config.PARTITION_FILENAME
+def partition_path(day: date, base: Path | None = None, filename: str = config.PARTITION_FILENAME) -> Path:
+    return partition_dir(day, base) / filename
 
 
 @retry(
@@ -97,10 +98,7 @@ def write_partition(df: pd.DataFrame, day: date, base: Path | None = None) -> Pa
     out["_extracted_at"] = datetime.now(timezone.utc)
     out["_source"] = "baseball_savant"
 
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(".parquet.tmp")
-    out.to_parquet(tmp, index=False)
-    os.replace(tmp, target)  # atomic on the same filesystem
+    write_parquet_atomic(out, target)
     log.info("%s: wrote %s pitches -> %s", day, f"{len(out):,}", target)
     return target
 
@@ -112,6 +110,7 @@ def extract_range(
     force: bool = False,
     fetch: FetchFn = fetch_day,
     base: Path | None = None,
+    pause: float = 0.0,
 ) -> dict[str, int]:
     """Extract every day in [start, end]. Existing partitions are skipped unless
     force=True, which makes long backfills resumable after a failure."""
@@ -124,6 +123,8 @@ def extract_range(
             continue
 
         df = fetch(day)
+        if pause:
+            time.sleep(pause)
         if write_partition(df, day, base) is None:
             stats["no_games"] += 1
         else:

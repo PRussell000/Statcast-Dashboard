@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: fct_pitches
+    description: >
+      Central fact table, one row per pitch. Incremental: processes newly
+      extracted rows plus a lookback window, replacing rows by pitch_id.
+    columns:
+      - name: pitch_id
+        data_tests: [unique, not_null]
+      - name: game_pk
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_games')
+                field: game_pk
+      - name: pitcher_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_players')
+                field: player_id
+      - name: batter_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_players')
+                field: player_id
+
+  - name: dim_games
+    description: One row per game with tracked pitches, plus schedule details and home-plate umpire.
+    columns:
+      - name: game_pk
+        data_tests: [unique, not_null]
+      - name: home_plate_umpire_id
+        description: Null if the umpire extract found nobody for this game.
+
+  - name: dim_players
+    description: One row per pitcher or batter in the pitch data, with names and cross-site IDs.
+    columns:
+      - name: player_id
+        data_tests: [unique, not_null]
+      - name: name_source
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["chadwick_register", "statcast", "unknown"]

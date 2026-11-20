@@ -1,3 +1,4 @@
+{{ config(warn_if='>0', error_if='>100') }}
 -- Singular test: returns rows that FAIL. Real MLB pitches fall roughly between
 -- 35 mph (eephus / position-player pitching) and 106 mph.
 select pitch_id, release_speed_mph
