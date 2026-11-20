@@ -1,0 +1,26 @@
+# data and warehouse are rebuilt by the pipeline; never commit them
+data/
+warehouse/
+*.duckdb
+*.duckdb.wal
+
+# dbt
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+logs/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# os / editors
+.DS_Store
+.vscode/
+.idea/
+.env
+dbt/.user.yml

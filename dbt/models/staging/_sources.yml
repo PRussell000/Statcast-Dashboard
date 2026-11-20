@@ -1,0 +1,17 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw Statcast data loaded by statcast_pipeline/load.py from the Parquet lake.
+    schema: raw
+    tables:
+      - name: pitches
+        description: One row per pitch as returned by Baseball Savant, plus load metadata (_extracted_at, _source, dt).
+        loaded_at_field: _extracted_at
+        # `dbt source freshness` will warn in the off-season; that's expected.
+        freshness:
+          warn_after: {count: 2, period: day}
+        columns:
+          - name: game_pk
+            data_tests:
+              - not_null

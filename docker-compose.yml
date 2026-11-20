@@ -1,0 +1,7 @@
+services:
+  pipeline:
+    build: .
+    # Data and the DuckDB file live on your machine, so they survive the container.
+    volumes:
+      - ./data:/app/data
+      - ./warehouse:/app/warehouse

@@ -1,0 +1,11 @@
+data/
+warehouse/
+dbt/target/
+dbt/logs/
+logs/
+.venv/
+venv/
+.git/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

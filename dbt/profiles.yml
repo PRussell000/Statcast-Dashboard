@@ -1,0 +1,16 @@
+# Kept inside the repo so `dbt --profiles-dir dbt` works with no setup.
+# The warehouse path comes from the WAREHOUSE_PATH environment variable
+# (set by statcast_pipeline/run.py, Docker and CI); the default assumes you run
+# dbt from the repository root.
+statcast:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('WAREHOUSE_PATH', 'warehouse/statcast.duckdb') }}"
+      threads: 4
+    # Week 3: add a `prod` output pointing at MotherDuck, e.g.
+    # prod:
+    #   type: duckdb
+    #   path: "md:statcast"
+    #   threads: 4

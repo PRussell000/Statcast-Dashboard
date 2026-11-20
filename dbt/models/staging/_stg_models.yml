@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: stg_pitches
+    description: >
+      One row per pitch, typed and renamed from raw.pitches and deduplicated on
+      (game_pk, at_bat_number, pitch_number). Grain: pitch.
+    columns:
+      - name: pitch_id
+        description: Surrogate key "game_pk-at_bat_number-pitch_number".
+        data_tests:
+          - unique
+          - not_null
+      - name: game_pk
+        data_tests:
+          - not_null
+      - name: game_date
+        data_tests:
+          - not_null
+      - name: pitcher_id
+        data_tests:
+          - not_null
+      - name: batter_id
+        data_tests:
+          - not_null
+      - name: balls
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1, 2, 3]
+                quote: false
+      - name: strikes
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1, 2]
+                quote: false
+      - name: pitch_result_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["B", "S", "X"]
+      - name: pitch_type
+        description: Statcast pitch type code. New codes appear occasionally (e.g. ST, SV), so this test only warns.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["FF", "FT", "SI", "FC", "SL", "ST", "SV", "CU", "KC", "CS", "CH",
+                         "FS", "FO", "SC", "KN", "EP", "PO", "FA", "IN", "AB", "UN"]
+              config:
+                severity: warn
+      - name: release_speed_mph
+        description: Pitch speed at release. Singular test assert_plausible_release_speed checks the range.

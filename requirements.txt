@@ -1,0 +1,11 @@
+pybaseball==2.2.7
+pandas>=2.2,<3        # pybaseball predates pandas 3; stay on 2.x until it's tested
+pyarrow>=15
+duckdb>=1.1
+dbt-duckdb>=1.10      # brings dbt-core
+tenacity>=8.2
+numpy>=1.26
+
+# dev
+pytest>=8
+ruff>=0.6
