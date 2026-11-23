@@ -12,7 +12,7 @@ An ELT pipeline for MLB pitch-level data: **Baseball Savant + MLB Stats API → 
 
 **Status:** complete: extract, load, dbt model layer, backfill, Airflow orchestration, public dashboard, published dbt docs, tests, Docker, CI.
 
-**Live dashboard:** [statcast-dashboard-yrhzpif4sshjmzoj6janxz.streamlit.app/](https://statcast-dashboard-yrhzpif4sshjmzoj6janxz.streamlit.app/) · **dbt docs:** [github.com/PRussell000/Statcast-Dashboard](https://github.com/PRussell000/Statcast-Dashboard)
+**Live dashboard:** [statcast-dashboard.streamlit.app](https://statcast-dashboard-yrhzpif4sshjmzoj6janxz.streamlit.app/) · **dbt docs:** [github.com/PRussell000/Statcast-Dashboard](https://github.com/PRussell000/Statcast-Dashboard)
 
 ## Quickstart
 
