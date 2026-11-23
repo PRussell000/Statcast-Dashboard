@@ -13,7 +13,7 @@ import streamlit as st
 from charts import called_strike_heatmap, count_bars, difference_heatmap, movement_plot, spread_bars, style
 
 HERE = Path(__file__).resolve().parent
-REPO_URL = "https://github.com/[handle]/statcast-pipeline"   # set to your repo
+REPO_URL = "https://github.com/PRussell000/Statcast-Dashboard/"   # set to your repo
 MIN_CELL_TAKES = 25          # hide heatmap cells with too few pitches to trust
 MIN_COUNT_CELL_TAKES = 10    # one count is a smaller slice, so allow thinner cells
 MIN_UMP_CELL_TAKES = 20      # per-umpire map uses 4-inch x 20%-of-zone cells

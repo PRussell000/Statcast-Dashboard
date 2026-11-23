@@ -1,4 +1,4 @@
-https://github.com/PRussell000/Statcast-Dashboard
+
 """Publish step: export the small analytics tables the dashboard needs.
 
 The warehouse holds millions of rows and never leaves your machine. This step
