@@ -216,10 +216,15 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    kwargs: dict[str, Any] = {}
+    if config.SAMPLE_MODE:
+        from statcast_pipeline import sample
+
+        kwargs = {"fetch": sample.fake_fetch_schedule, "fetch_officials": sample.fake_fetch_boxscore_officials}
     if args.fill_gaps:
-        fill_gaps()
+        fill_gaps(**kwargs)
     else:
-        extract_games_range(args.start, args.end or args.start, force=args.force)
+        extract_games_range(args.start, args.end or args.start, force=args.force or config.SAMPLE_MODE, **kwargs)
 
 
 if __name__ == "__main__":

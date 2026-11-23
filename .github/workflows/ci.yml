@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  pipeline:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,48 @@ jobs:
       - name: Unit tests
         run: pytest -q
 
-      # CI has no reason to hit Baseball Savant, so the full pipeline runs on
-      # generated sample data. This still proves extract -> load -> dbt build works.
-      - name: Pipeline + dbt build on sample data
-        run: python -m statcast_pipeline.run --sample --start 2024-06-01 --end 2024-06-07
+      # CI never hits Baseball Savant: the full pipeline runs on generated
+      # sample data, which still proves extract -> load -> dbt build works.
+      - name: Pipeline + dbt build + publish on sample data
+        run: python -m statcast_pipeline.run --sample --start 2024-04-01 --end 2024-06-30
+
+      - name: Dashboard smoke tests (every page renders on the published sample data)
+        run: pytest -q tests/test_dashboard.py
+
+  dags:
+    runs-on: ubuntu-latest
+    env:
+      AIRFLOW_VERSION: "3.4.0"
+      AIRFLOW_HOME: ${{ github.workspace }}/.airflow
+      AIRFLOW__CORE__DAGS_FOLDER: ${{ github.workspace }}/airflow/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      PIPELINE_PYTHON: ${{ github.workspace }}/.pipeline-venv/bin/python
+      STATCAST_SAMPLE: "1"
+      PAUSE_SECONDS: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Same split as the Docker image: Airflow in one environment, the pipeline in another.
+      - name: Install pipeline (own venv)
+        run: |
+          python -m venv .pipeline-venv
+          .pipeline-venv/bin/pip install -r requirements.txt
+
+      - name: Install Airflow
+        run: |
+          pip install "apache-airflow==${AIRFLOW_VERSION}" apache-airflow-providers-standard pytest \
+            --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-3.12.txt"
+
+      - name: DAG integrity tests
+        run: pytest -q tests/test_dags.py
+
+      - name: Run the daily DAG on sample data
+        run: |
+          airflow db migrate
+          airflow pools set duckdb_writer 1 "DuckDB single writer"
+          # `airflow dags test` exits non-zero if any task fails, which fails this job
+          airflow dags test statcast_daily --conf '{"start": "2024-06-01", "end": "2024-06-04"}'

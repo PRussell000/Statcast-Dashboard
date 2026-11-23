@@ -26,3 +26,14 @@ models:
     columns:
       - name: season_pitch_key
         data_tests: [unique, not_null]
+
+  - name: mart_called_zone_grid
+    description: "Called pitches binned around the strike zone (2-inch x 10%-of-zone cells) for heatmaps. Grain: season x scope x umpire x count x cell."
+    columns:
+      - name: grid_key
+        data_tests: [unique, not_null]
+      - name: scope
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["league", "umpire"]

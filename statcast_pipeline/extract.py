@@ -80,7 +80,9 @@ def fetch_day(day: date) -> pd.DataFrame:
     return df if df is not None else pd.DataFrame()
 
 
-def write_partition(df: pd.DataFrame, day: date, base: Path | None = None) -> Path | None:
+def write_partition(
+    df: pd.DataFrame, day: date, base: Path | None = None, source: str = "baseball_savant"
+) -> Path | None:
     """Write one day's pitches to its partition, replacing any previous file.
 
     Returns the file path, or None when there were no pitches that day.
@@ -96,7 +98,7 @@ def write_partition(df: pd.DataFrame, day: date, base: Path | None = None) -> Pa
 
     out = df.copy()
     out["_extracted_at"] = datetime.now(timezone.utc)
-    out["_source"] = "baseball_savant"
+    out["_source"] = source
 
     write_parquet_atomic(out, target)
     log.info("%s: wrote %s pitches -> %s", day, f"{len(out):,}", target)
@@ -111,6 +113,7 @@ def extract_range(
     fetch: FetchFn = fetch_day,
     base: Path | None = None,
     pause: float = 0.0,
+    source: str = "baseball_savant",
 ) -> dict[str, int]:
     """Extract every day in [start, end]. Existing partitions are skipped unless
     force=True, which makes long backfills resumable after a failure."""
@@ -125,7 +128,7 @@ def extract_range(
         df = fetch(day)
         if pause:
             time.sleep(pause)
-        if write_partition(df, day, base) is None:
+        if write_partition(df, day, base, source) is None:
             stats["no_games"] += 1
         else:
             stats["written"] += 1
@@ -148,7 +151,12 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    extract_range(args.start, args.end or args.start, force=args.force)
+    if config.SAMPLE_MODE:
+        from statcast_pipeline.sample import fake_fetch
+
+        extract_range(args.start, args.end or args.start, force=True, fetch=fake_fetch, source="sample")
+    else:
+        extract_range(args.start, args.end or args.start, force=args.force)
 
 
 if __name__ == "__main__":

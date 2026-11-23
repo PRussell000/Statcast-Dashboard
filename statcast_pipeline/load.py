@@ -73,14 +73,19 @@ def _has_files(pattern: str) -> bool:
     return p.exists()
 
 
-def load_all(data_dir: Path | None = None, warehouse_path: Path | None = None) -> dict[str, int]:
-    """Create or replace every raw table. Returns row counts by table."""
+def load_all(data_dir: Path | None = None, warehouse: Path | str | None = None) -> dict[str, int]:
+    """Create or replace every raw table. Returns row counts by table.
+
+    `warehouse` is a DuckDB file path or a MotherDuck "md:<db>" string. With
+    MotherDuck, DuckDB reads the local Parquet files and uploads the result.
+    """
     data_dir = data_dir or config.DATA_DIR
-    warehouse_path = warehouse_path or config.WAREHOUSE_PATH
-    warehouse_path.parent.mkdir(parents=True, exist_ok=True)
+    target = str(warehouse or config.WAREHOUSE_URI)
+    if not target.startswith("md:"):
+        Path(target).parent.mkdir(parents=True, exist_ok=True)
 
     counts: dict[str, int] = {}
-    with duckdb.connect(str(warehouse_path)) as con:
+    with duckdb.connect(target) as con:
         con.execute("create schema if not exists raw")
         for t in raw_tables(data_dir):
             if _has_files(t.pattern):

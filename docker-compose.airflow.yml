@@ -1,0 +1,103 @@
+# Local Airflow 3 for the Statcast pipeline: Postgres metadata DB + LocalExecutor.
+#
+#   docker compose -f docker-compose.airflow.yml up -d --build
+#   open http://localhost:8080   (no login: local-only "everyone is admin" mode)
+#   docker compose -f docker-compose.airflow.yml down
+#
+# The whole repo is mounted at /opt/statcast, so DAG edits, data/ and the
+# warehouse/ DuckDB file are shared with your machine. Settings come from .env
+# (copy .env.example).
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: airflow/Dockerfile
+  image: statcast-airflow:local
+  user: "${AIRFLOW_UID:-50000}:0"
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/statcast/airflow/dags
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: America/New_York
+    # Airflow 3: task processes report back through the API server.
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    # Local-only auth: no login screen. Never expose this setup to the internet.
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
+    # Must be identical across components; fine as a fixed value for local use.
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:-local-dev-only-change-me}
+    AIRFLOW__API__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-local-dev-only-change-me}
+    # The pipeline itself
+    PIPELINE_DIR: /opt/statcast
+    PIPELINE_PYTHON: /opt/pipeline-venv/bin/python
+    DATA_DIR: /opt/statcast/data
+    WAREHOUSE_PATH: ${WAREHOUSE_PATH:-/opt/statcast/warehouse/statcast.duckdb}
+    MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
+    ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    STATCAST_SAMPLE: ${STATCAST_SAMPLE:-}
+  volumes:
+    - ./:/opt/statcast
+  depends_on: &airflow-depends
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+    restart: unless-stopped
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - airflow db migrate && airflow pools set duckdb_writer 1 "DuckDB allows one writer at a time"
+
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  airflow-db:

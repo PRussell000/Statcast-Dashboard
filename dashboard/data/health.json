@@ -1,0 +1,62 @@
+{
+  "published_at": "2026-11-23T04:45:21+00:00",
+  "sample_data": false,
+  "last_extracted_at": "2026-11-20 06:56",
+  "rows": {
+    "raw.pitches": 2305082,
+    "raw.games": 8087,
+    "raw.game_officials": 32535,
+    "raw.players": 24938,
+    "core.fct_pitches": 2305082,
+    "core.dim_games": 7921,
+    "core.dim_players": 4157
+  },
+  "seasons": [
+    {
+      "season": 2023,
+      "regular_season_games": 2430,
+      "postseason_games": 41,
+      "spring_games": 195,
+      "pitches": 774038.0,
+      "first_game": "2023-03-15",
+      "last_game": "2023-11-01",
+      "regular_games_without_umpire": 0
+    },
+    {
+      "season": 2024,
+      "regular_season_games": 2429,
+      "postseason_games": 43,
+      "spring_games": 157,
+      "pitches": 760249.0,
+      "first_game": "2024-03-15",
+      "last_game": "2024-10-30",
+      "regular_games_without_umpire": 0
+    },
+    {
+      "season": 2025,
+      "regular_season_games": 2430,
+      "postseason_games": 47,
+      "spring_games": 149,
+      "pitches": 770795.0,
+      "first_game": "2025-03-15",
+      "last_game": "2025-11-01",
+      "regular_games_without_umpire": 0
+    }
+  ],
+  "dbt": {
+    "generated_at": "2026-11-23T04:45:06.937246Z",
+    "elapsed_seconds": 8.4,
+    "status_counts": {
+      "pass": 50,
+      "success": 13,
+      "warn": 1
+    },
+    "flagged": [
+      {
+        "node": "assert_plausible_release_speed",
+        "status": "warn",
+        "failures": 1
+      }
+    ]
+  }
+}

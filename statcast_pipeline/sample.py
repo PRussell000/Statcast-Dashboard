@@ -26,6 +26,42 @@ SWINGS = {"foul", "hit_into_play", "swinging_strike"}
 TEAMS = ["PHI", "NYM", "ATL", "MIA", "WSH", "LAD", "SD", "NYY", "BOS", "HOU"]
 
 
+# A fixed cast, so pitchers have real arsenals across days and umpires work many games.
+# (pitch type, mean mph, mean horizontal break ft, mean induced vertical break ft, movement sd ft)
+_PITCH_PROFILES = {
+    "FF": (94.5, -0.55, 1.35, 0.12), "SI": (93.5, -1.25, 0.70, 0.12), "FC": (89.0, 0.20, 0.75, 0.12),
+    "SL": (85.5, 0.45, 0.15, 0.14), "ST": (82.5, 1.15, 0.05, 0.15), "CU": (79.5, 0.70, -0.85, 0.15),
+    "CH": (85.5, -1.20, 0.55, 0.13), "FS": (86.5, -0.85, 0.20, 0.14), "KN": (76.0, 0.00, 0.10, 0.55),
+}
+_ARSENALS = [["FF", "SL", "CH"], ["SI", "SL", "CH", "FF"], ["FF", "CU", "CH"], ["FF", "FC", "ST", "SI"],
+             ["SI", "ST", "CH"], ["FF", "SL", "CU", "FS"], ["FF", "FS", "SL"], ["SI", "FC", "CU", "CH", "FF"]]
+
+
+def _pitchers() -> list[dict]:
+    rng = np.random.default_rng(42)
+    staff = []
+    for i in range(80):
+        arsenal = ["KN", "FF"] if i == 79 else _ARSENALS[i % len(_ARSENALS)]
+        weights = rng.dirichlet(np.ones(len(arsenal)) * 2.5)
+        staff.append({"id": 500000 + i, "name": f"Pitcher{i:02d}, Sample", "hand": "L" if i % 4 == 0 else "R",
+                      "arsenal": arsenal, "weights": weights,
+                      "velo_shift": float(rng.normal(0, 1.5))})
+    return staff
+
+
+_PITCHERS = _pitchers()
+_BATTERS = list(range(600000, 600400))
+_PAD = (8.5 + 1.45) / 12          # half-width of the zone incl. ball radius, feet
+
+
+def _called_strike_prob(plate_x, plate_z, sz_top, sz_bot, balls, strikes) -> float:
+    """Umpire model: a soft edge around the rulebook zone that shrinks with two
+    strikes and widens in hitter's counts, like the real effect."""
+    edge = min(_PAD - abs(plate_x), plate_z - (sz_bot - 0.12), (sz_top + 0.12) - plate_z) * 12  # inches
+    shift = -1.2 * (strikes == 2) + 0.8 * (balls == 3) + 0.4 * (balls - strikes > 1)
+    return float(1 / (1 + np.exp(-(edge + shift) / 0.9)))
+
+
 def make_fake_day(day: date, n_games: int = 3, pitches_per_game: int = 280, seed: int | None = None) -> pd.DataFrame:
     """Return a DataFrame shaped like one day of pybaseball.statcast() output."""
     rng = np.random.default_rng(seed if seed is not None else day.toordinal())
@@ -33,50 +69,64 @@ def make_fake_day(day: date, n_games: int = 3, pitches_per_game: int = 280, seed
     for g in range(n_games):
         game_pk = 700000 + day.toordinal() % 100000 * 10 + g
         home, away = rng.choice(TEAMS, size=2, replace=False)
+        game_pitchers = [_PITCHERS[j] for j in rng.choice(len(_PITCHERS), size=4, replace=False)]
         at_bat, pitch_no, balls, strikes = 1, 1, 0, 0
-        for _ in range(pitches_per_game):
-            desc = rng.choice(list(DESCRIPTIONS), p=[0.33, 0.17, 0.11, 0.18, 0.18, 0.03])
-            ptype = rng.choice(list(PITCH_TYPES))
+        batter = int(rng.choice(_BATTERS))
+        for n in range(pitches_per_game):
+            pitcher = game_pitchers[min(n * 4 // pitches_per_game, 3)]
+            ptype = str(rng.choice(pitcher["arsenal"], p=pitcher["weights"]))
+            mph, hb, ivb, sd = _PITCH_PROFILES[ptype]
+            sz_top, sz_bot = round(float(rng.normal(3.4, 0.12)), 2), round(float(rng.normal(1.6, 0.08)), 2)
+            plate_x = round(float(rng.normal(0.05, 0.75)), 2)
+            plate_z = round(float(rng.normal(2.35, 0.75)), 2)
+            in_zone = abs(plate_x) <= _PAD and sz_bot - 0.12 <= plate_z <= sz_top + 0.12
+            swing_p = (0.68 if in_zone else 0.28) + (0.15 if strikes == 2 else 0)
+            if rng.random() < swing_p:
+                desc = str(rng.choice(["swinging_strike", "foul", "hit_into_play"], p=[0.22, 0.42, 0.36]))
+            else:
+                desc = "called_strike" if rng.random() < _called_strike_prob(
+                    plate_x, plate_z, sz_top, sz_bot, balls, strikes) else "ball"
             in_play = desc == "hit_into_play"
             rows.append({
                 "pitch_type": ptype,
                 "game_date": pd.Timestamp(day),
-                "release_speed": round(float(rng.normal(65 if ptype == "KN" else 89, 4)), 1),
-                "release_pos_x": round(float(rng.normal(-1.5, 0.8)), 2),
-                "release_pos_z": round(float(rng.normal(5.8, 0.3)), 2),
-                "player_name": f"Pitcher, {rng.integers(1, 40)}",
-                "batter": int(rng.integers(600000, 700000)),
-                "pitcher": int(rng.integers(500000, 600000)),
-                "events": rng.choice(["single", "field_out", "double", "home_run"]) if in_play else None,
+                "release_speed": round(float(rng.normal(mph + pitcher["velo_shift"], 1.0)), 1),
+                "release_pos_x": round(float(rng.normal(-1.5 if pitcher["hand"] == "R" else 1.5, 0.3)), 2),
+                "release_pos_z": round(float(rng.normal(5.8, 0.2)), 2),
+                "player_name": pitcher["name"],
+                "batter": batter,
+                "pitcher": pitcher["id"],
+                "events": str(rng.choice(["single", "field_out", "double", "home_run"],
+                                         p=[0.25, 0.6, 0.1, 0.05])) if in_play else None,
                 "description": desc,
                 "zone": int(rng.integers(1, 15)),
                 "game_type": "R",
-                "stand": rng.choice(["L", "R"]),
-                "p_throws": rng.choice(["L", "R"]),
+                "stand": str(rng.choice(["L", "R"])),
+                "p_throws": pitcher["hand"],
                 "home_team": home,
                 "away_team": away,
                 "type": DESCRIPTIONS[desc],
-                "bb_type": rng.choice(["ground_ball", "line_drive", "fly_ball"]) if in_play else None,
+                "bb_type": str(rng.choice(["ground_ball", "line_drive", "fly_ball"])) if in_play else None,
                 "balls": balls,
                 "strikes": strikes,
                 "game_year": day.year,
-                "pfx_x": round(float(rng.normal(0, 0.8)), 2),
-                "pfx_z": round(float(rng.normal(1, 0.6)), 2),
-                "plate_x": round(float(rng.normal(0, 0.9)), 2),
-                "plate_z": round(float(rng.normal(2.4, 0.9)), 2),
+                "pfx_x": round(float(rng.normal(hb, sd)), 2),
+                "pfx_z": round(float(rng.normal(ivb, sd)), 2),
+                "plate_x": plate_x,
+                "plate_z": plate_z,
                 "outs_when_up": int(rng.integers(0, 3)),
-                "inning": int(rng.integers(1, 10)),
-                "inning_topbot": rng.choice(["Top", "Bot"]),
-                "sz_top": round(float(rng.normal(3.4, 0.1)), 2),
-                "sz_bot": round(float(rng.normal(1.6, 0.1)), 2),
+                "inning": min(n * 9 // pitches_per_game + 1, 9),
+                "inning_topbot": str(rng.choice(["Top", "Bot"])),
+                "sz_top": sz_top,
+                "sz_bot": sz_bot,
                 "hit_distance_sc": float(rng.integers(5, 420)) if in_play else np.nan,
                 "launch_speed": round(float(rng.normal(89, 12)), 1) if in_play else np.nan,
                 "launch_angle": float(rng.integers(-30, 60)) if in_play else np.nan,
-                "effective_speed": round(float(rng.normal(89, 4)), 1),
+                "effective_speed": round(float(rng.normal(mph, 1.2)), 1),
                 "release_spin_rate": float(rng.integers(1500, 2800)),
                 "release_extension": round(float(rng.normal(6.3, 0.3)), 1),
                 "game_pk": game_pk,
-                "fielder_2": int(rng.integers(500000, 700000)),
+                "fielder_2": 650000 + g,
                 "at_bat_number": at_bat,
                 "pitch_number": pitch_no,
                 "pitch_name": PITCH_TYPES[ptype],
@@ -86,13 +136,14 @@ def make_fake_day(day: date, n_games: int = 3, pitches_per_game: int = 280, seed
                 "bat_speed": round(float(rng.normal(71, 4)), 1) if desc in SWINGS else np.nan,
             })
             # Advance the count / at-bat in a simple, roughly realistic way.
-            ends_pa = in_play or (desc in {"ball", "blocked_ball"} and balls == 3) or (
+            ends_pa = in_play or (desc == "ball" and balls == 3) or (
                 desc in {"called_strike", "swinging_strike"} and strikes == 2)
             if ends_pa:
                 at_bat, pitch_no, balls, strikes = at_bat + 1, 1, 0, 0
+                batter = int(rng.choice(_BATTERS))
             else:
                 pitch_no += 1
-                if desc in {"ball", "blocked_ball"}:
+                if desc == "ball":
                     balls += 1
                 elif desc != "foul" or strikes < 2:
                     strikes = min(strikes + 1, 2)
@@ -125,7 +176,7 @@ def fake_fetch_schedule(day: date) -> dict:
     games = pitches.drop_duplicates("game_pk")[["game_pk", "home_team", "away_team"]]
     out = []
     for i, row in enumerate(games.itertuples(index=False)):
-        ump_id, ump_name = UMPIRES[row.game_pk % len(UMPIRES)]
+        ump_id, ump_name = UMPIRES[(row.game_pk // 10 * 3 + row.game_pk % 10) % len(UMPIRES)]
         officials = [
             {"official": {"id": ump_id, "fullName": ump_name}, "officialType": "Home Plate"},
             {"official": {"id": ump_id + 100, "fullName": f"{ump_name} Jr."}, "officialType": "First Base"},

@@ -7,6 +7,10 @@ tenacity>=8.2
 requests>=2.31
 numpy>=1.26
 
+# dashboard (deployed separately with dashboard/requirements.txt)
+streamlit>=1.40
+altair>=5.4
+
 # dev
 pytest>=8
 ruff>=0.6

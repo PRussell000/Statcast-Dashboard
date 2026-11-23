@@ -22,7 +22,8 @@ from statcast_pipeline.extract import extract_range
 from statcast_pipeline.extract_games import extract_games_range
 from statcast_pipeline.extract_players import extract_players
 from statcast_pipeline.load import load_all
-from statcast_pipeline.run import dbt_build
+from statcast_pipeline.publish import publish
+from statcast_pipeline.transform import dbt_build
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ def season_window(season: int) -> tuple[date, date]:
 
 
 def backfill(seasons: list[int], *, force: bool = False, pause: float = config.DEFAULT_PAUSE_SECONDS,
-             build: bool = True) -> None:
+             build: bool = True, extract_only: bool = False) -> None:
     for season in sorted(seasons):
         if season < FIRST_STATCAST_SEASON:
             log.warning("Skipping %s: Statcast pitch tracking starts in %s", season, FIRST_STATCAST_SEASON)
@@ -47,8 +48,18 @@ def backfill(seasons: list[int], *, force: bool = False, pause: float = config.D
             log.warning("Skipping %s: season hasn't started yet", season)
             continue
         log.info("=== Season %s: %s to %s ===", season, start, end)
-        extract_range(start, end, force=force, pause=pause)
-        extract_games_range(start, end, force=force, pause=pause)
+        if config.SAMPLE_MODE:
+            from statcast_pipeline import sample
+
+            extract_range(start, end, force=True, fetch=sample.fake_fetch, source="sample")
+            extract_games_range(start, end, force=True, fetch=sample.fake_fetch_schedule,
+                                fetch_officials=sample.fake_fetch_boxscore_officials)
+        else:
+            extract_range(start, end, force=force, pause=pause)
+            extract_games_range(start, end, force=force, pause=pause)
+
+    if extract_only:
+        return
 
     try:
         extract_players()
@@ -58,6 +69,7 @@ def backfill(seasons: list[int], *, force: bool = False, pause: float = config.D
     load_all()
     if build:
         dbt_build()
+        publish()
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -70,11 +82,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--pause", type=float, default=config.DEFAULT_PAUSE_SECONDS,
                         help="Seconds to wait between days (default 1)")
     parser.add_argument("--skip-dbt", action="store_true")
+    parser.add_argument("--extract-only", action="store_true",
+                        help="Only extract; Airflow runs players, load and dbt as separate tasks")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     seasons = args.seasons or list(range(args.from_season, args.to_season + 1))
-    backfill(seasons, force=args.force, pause=args.pause, build=not args.skip_dbt)
+    backfill(seasons, force=args.force, pause=args.pause, build=not args.skip_dbt,
+             extract_only=args.extract_only)
 
 
 if __name__ == "__main__":

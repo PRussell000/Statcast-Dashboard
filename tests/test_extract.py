@@ -68,3 +68,24 @@ def test_extract_range_skips_existing_days_unless_forced(tmp_path):
 def test_extract_range_counts_days_without_games(tmp_path):
     stats = extract_range(DAY, DAY, fetch=lambda d: pd.DataFrame(), base=tmp_path)
     assert stats["no_games"] == 1 and stats["written"] == 0
+
+
+def test_sample_rows_are_labelled(tmp_path):
+    from statcast_pipeline.sample import fake_fetch
+
+    extract_range(DAY, DAY, fetch=fake_fetch, base=tmp_path, source="sample")
+    assert set(pd.read_parquet(partition_path(DAY, tmp_path))["_source"]) == {"sample"}
+
+
+def test_sample_paths_are_separate_from_real_paths():
+    import importlib
+
+    from statcast_pipeline import config
+
+    real_data, real_wh = config.DATA_DIR, config.WAREHOUSE_PATH
+    config.use_sample_paths()
+    try:
+        assert config.DATA_DIR != real_data and config.WAREHOUSE_PATH != real_wh
+        assert config.RAW_STATCAST_DIR.is_relative_to(config.DATA_DIR)
+    finally:
+        importlib.reload(config)

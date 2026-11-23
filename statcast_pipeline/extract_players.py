@@ -64,9 +64,20 @@ def extract_players(
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Extract the Chadwick player register.")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--strict", action="store_true", help="Exit with an error if the refresh fails")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    extract_players(force=args.force)
+    if config.SAMPLE_MODE:
+        from statcast_pipeline.sample import fake_players_from_lake
+
+        extract_players(force=True, fetch=lambda: fake_players_from_lake(config.RAW_STATCAST_DIR))
+        return
+    try:
+        extract_players(force=args.force)
+    except Exception as exc:  # names are nice to have; never fail a pipeline run on them
+        if args.strict:
+            raise
+        log.warning("Player register refresh failed (%s); keeping the existing copy", exc)
 
 
 if __name__ == "__main__":

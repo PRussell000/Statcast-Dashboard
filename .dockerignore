@@ -1,5 +1,6 @@
-data/
-warehouse/
+/data/
+/data_sample/
+/warehouse/
 dbt/target/
 dbt/logs/
 logs/

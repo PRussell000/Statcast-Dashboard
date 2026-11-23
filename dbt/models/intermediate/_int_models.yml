@@ -16,9 +16,4 @@ models:
               arguments:
                 values: ["missed_strike", "missed_ball"]
       - name: umpire_id
-        description: Null when the umpire extract found no home-plate umpire for the game.
-        data_tests:
-          - not_null:
-              config:
-                severity: warn
-                warn_if: ">1000"
+        description: "Null when the umpire extract found no home-plate umpire for the game. Coverage is checked as a percentage by assert_plate_umpire_coverage."

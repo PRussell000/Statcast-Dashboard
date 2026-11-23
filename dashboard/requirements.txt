@@ -1,0 +1,6 @@
+# Dashboard only: Streamlit Community Cloud uses this file (it sits next to app.py),
+# so the deployed app doesn't install dbt, Airflow or pybaseball.
+streamlit>=1.40
+altair>=5.4
+pandas>=2.2
+pyarrow>=15
